@@ -62,7 +62,7 @@ export async function getWorkshops() {
   return (data as WorkshopRow[]).map(toWorkshop)
 }
 
-type GalleryRow = { id: string; image_url: string; caption: string | null; sort_order: number }
+type GalleryRow = { id: string; image_url: string; caption: string | null; sort_order: number; media_type: 'image' | 'video' | 'instagram' }
 
 export type AdminWorkshop = WorkshopRow & { created_at: string }
 export type AdminRegistration = {
@@ -86,6 +86,8 @@ export type AdminMessage = {
   message: string
   created_at: string
 }
+export type Announcement = { id: string; title: string; message: string; created_at: string }
+export type SiteSetting = { key: string; value: string }
 
 export async function getGallery() {
   if (!supabase) return fallbackGallery
@@ -94,20 +96,22 @@ export async function getGallery() {
     .select('id,image_url,caption,sort_order')
     .order('sort_order', { ascending: true })
   if (error) throw error
-  return (data as GalleryRow[]).map((row) => ({ image: row.image_url, caption: row.caption ?? 'Made together.' }))
+  return (data as GalleryRow[]).map((row) => ({ image: row.image_url, caption: row.caption ?? 'Made together.', mediaType: row.media_type }))
 }
 
 export async function getAdminData() {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const [workshopsResult, registrationsResult, galleryResult, messagesResult] = await Promise.all([
+  const [workshopsResult, registrationsResult, galleryResult, messagesResult, announcementsResult, settingsResult] = await Promise.all([
     supabase.from('workshops').select('*').order('date', { ascending: true }),
     supabase.from('registrations').select('id,registration_id,workshop_id,full_name,phone,email,number_of_seats,status,payment_status,created_at').order('created_at', { ascending: false }),
     supabase.from('gallery').select('id,image_url,caption,sort_order,created_at').order('sort_order', { ascending: true }),
     supabase.from('contacts').select('id,name,email,phone,message,created_at').order('created_at', { ascending: false }),
+    supabase.from('announcements').select('id,title,message,created_at').order('created_at', { ascending: false }),
+    supabase.from('site_settings').select('key,value').order('key'),
   ])
 
-  const failed = [workshopsResult, registrationsResult, galleryResult, messagesResult].find((result) => result.error)
+  const failed = [workshopsResult, registrationsResult, galleryResult, messagesResult, announcementsResult, settingsResult].find((result) => result.error)
   if (failed?.error) throw failed.error
 
   return {
@@ -115,7 +119,52 @@ export async function getAdminData() {
     registrations: registrationsResult.data as AdminRegistration[],
     gallery: galleryResult.data as AdminGalleryItem[],
     messages: messagesResult.data as AdminMessage[],
+    announcements: announcementsResult.data as Announcement[],
+    settings: settingsResult.data as SiteSetting[],
   }
+}
+
+export async function getAnnouncements() {
+  if (!supabase) return [] as Announcement[]
+  const { data, error } = await supabase.from('announcements').select('id,title,message,created_at').order('created_at', { ascending: false }).limit(3)
+  if (error) throw error
+  return data as Announcement[]
+}
+
+export async function createWorkshop(input: Omit<AdminWorkshop, 'id' | 'created_at'>) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase.from('workshops').insert(input).select('*').single()
+  if (error) throw error
+  return data as AdminWorkshop
+}
+
+export async function createGalleryItem(input: { image_url: string; caption: string; media_type: 'image' | 'video' | 'instagram'; sort_order: number }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase.from('gallery').insert(input).select('id,image_url,caption,sort_order,media_type,created_at').single()
+  if (error) throw error
+  return data as AdminGalleryItem
+}
+
+export async function updateGalleryOrder(items: AdminGalleryItem[]) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  for (const [index, item] of items.entries()) {
+    const { error } = await supabase.from('gallery').update({ sort_order: index }).eq('id', item.id)
+    if (error) throw error
+  }
+}
+
+export async function createAnnouncement(input: { title: string; message: string }) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase.from('announcements').insert(input).select('id,title,message,created_at').single()
+  if (error) throw error
+  return data as Announcement
+}
+
+export async function saveSiteSetting(key: string, value: string) {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase.from('site_settings').upsert({ key, value }).select('key,value').single()
+  if (error) throw error
+  return data as SiteSetting
 }
 
 export type RegistrationInput = {

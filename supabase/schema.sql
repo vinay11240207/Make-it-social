@@ -49,6 +49,7 @@ create table public.gallery (
   id uuid primary key default gen_random_uuid(),
   image_url text not null,
   caption text,
+  media_type text not null default 'image' check (media_type in ('image', 'video', 'instagram')),
   workshop_id uuid references public.workshops(id) on delete set null,
   sort_order integer not null default 0,
   created_at timestamptz not null default now()
@@ -63,11 +64,30 @@ create table public.contacts (
   created_at timestamptz not null default now()
 );
 
+create table public.announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create table public.site_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.gallery add column if not exists media_type text not null default 'image';
+alter table public.gallery drop constraint if exists gallery_media_type_check;
+alter table public.gallery add constraint gallery_media_type_check check (media_type in ('image', 'video', 'instagram'));
+
 alter table public.workshops enable row level security;
 alter table public.registrations enable row level security;
 alter table public.gallery enable row level security;
 alter table public.contacts enable row level security;
 alter table public.admins enable row level security;
+alter table public.announcements enable row level security;
+alter table public.site_settings enable row level security;
 
 create or replace function public.is_admin()
 returns boolean language sql security definer set search_path = public
@@ -82,6 +102,10 @@ create policy "admins manage registrations" on public.registrations for all usin
 create policy "admins manage gallery" on public.gallery for all using (public.is_admin()) with check (public.is_admin());
 create policy "admins read contacts" on public.contacts for select using (public.is_admin());
 create policy "admins read own role" on public.admins for select using (user_id = auth.uid());
+create policy "announcements are public" on public.announcements for select using (true);
+create policy "admins manage announcements" on public.announcements for all using (public.is_admin()) with check (public.is_admin());
+create policy "settings are public" on public.site_settings for select using (true);
+create policy "admins manage settings" on public.site_settings for all using (public.is_admin()) with check (public.is_admin());
 
 -- Add an authenticated user's UUID to public.admins from a trusted migration/admin console.
 -- Never put passwords or service-role keys in frontend code.
