@@ -1,10 +1,78 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Workshop } from './data'
+import { gallery as fallbackGallery, workshops as fallbackWorkshops, type Workshop } from './data'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
+
+type WorkshopRow = {
+  id: string
+  title: string
+  slug: string
+  description: string
+  short_description: string
+  image_url: string | null
+  date: string
+  start_time: string
+  end_time: string
+  location: string
+  price: number
+  total_seats: number
+  available_seats: number
+  materials: string[]
+  status: string
+}
+
+function formatWorkshopDate(value: string) {
+  return new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${value}T00:00:00`))
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(new Date(`1970-01-01T${value}`))
+}
+
+function toWorkshop(row: WorkshopRow): Workshop {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    shortDescription: row.short_description,
+    description: row.description,
+    image: row.image_url ?? fallbackWorkshops[0].image,
+    date: formatWorkshopDate(row.date),
+    time: `${formatTime(row.start_time)} – ${formatTime(row.end_time)}`,
+    location: row.location,
+    price: row.price,
+    availableSeats: row.available_seats,
+    totalSeats: row.total_seats,
+    tag: row.available_seats === 0 ? 'SOLD OUT' : 'UPCOMING',
+    materials: row.materials ?? [],
+  }
+}
+
+export async function getWorkshops() {
+  if (!supabase) return fallbackWorkshops
+  const { data, error } = await supabase
+    .from('workshops')
+    .select('id,title,slug,description,short_description,image_url,date,start_time,end_time,location,price,total_seats,available_seats,materials,status')
+    .eq('status', 'published')
+    .order('date', { ascending: true })
+  if (error) throw error
+  return (data as WorkshopRow[]).map(toWorkshop)
+}
+
+type GalleryRow = { id: string; image_url: string; caption: string | null; sort_order: number }
+
+export async function getGallery() {
+  if (!supabase) return fallbackGallery
+  const { data, error } = await supabase
+    .from('gallery')
+    .select('id,image_url,caption,sort_order')
+    .order('sort_order', { ascending: true })
+  if (error) throw error
+  return (data as GalleryRow[]).map((row) => ({ image: row.image_url, caption: row.caption ?? 'Made together.' }))
+}
 
 export type RegistrationInput = {
   workshop: Workshop
