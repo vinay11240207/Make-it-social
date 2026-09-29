@@ -89,6 +89,10 @@ export type AdminMessage = {
 export type Announcement = { id: string; title: string; message: string; created_at: string }
 export type SiteSetting = { key: string; value: string }
 
+function isMissingTable(error: { code?: string } | null) {
+  return error?.code === 'PGRST205'
+}
+
 export async function getGallery() {
   if (!supabase) return fallbackGallery
   const { data, error } = await supabase
@@ -102,16 +106,19 @@ export async function getGallery() {
 export async function getAdminData() {
   if (!supabase) throw new Error('Supabase is not configured.')
 
-  const [workshopsResult, registrationsResult, galleryResult, messagesResult, announcementsResult, settingsResult] = await Promise.all([
+  const [workshopsResult, registrationsResult, galleryResult, messagesResult] = await Promise.all([
     supabase.from('workshops').select('*').order('date', { ascending: true }),
     supabase.from('registrations').select('id,registration_id,workshop_id,full_name,phone,email,number_of_seats,status,payment_status,created_at').order('created_at', { ascending: false }),
     supabase.from('gallery').select('id,image_url,caption,sort_order,created_at').order('sort_order', { ascending: true }),
     supabase.from('contacts').select('id,name,email,phone,message,created_at').order('created_at', { ascending: false }),
+  ])
+
+  const [announcementsResult, settingsResult] = await Promise.all([
     supabase.from('announcements').select('id,title,message,created_at').order('created_at', { ascending: false }),
     supabase.from('site_settings').select('key,value').order('key'),
   ])
 
-  const failed = [workshopsResult, registrationsResult, galleryResult, messagesResult, announcementsResult, settingsResult].find((result) => result.error)
+  const failed = [workshopsResult, registrationsResult, galleryResult, messagesResult].find((result) => result.error)
   if (failed?.error) throw failed.error
 
   return {
@@ -119,8 +126,9 @@ export async function getAdminData() {
     registrations: registrationsResult.data as AdminRegistration[],
     gallery: galleryResult.data as AdminGalleryItem[],
     messages: messagesResult.data as AdminMessage[],
-    announcements: announcementsResult.data as Announcement[],
-    settings: settingsResult.data as SiteSetting[],
+    announcements: (isMissingTable(announcementsResult.error) ? [] : announcementsResult.data) as Announcement[],
+    settings: (isMissingTable(settingsResult.error) ? [] : settingsResult.data) as SiteSetting[],
+    migrationRequired: isMissingTable(announcementsResult.error) || isMissingTable(settingsResult.error),
   }
 }
 
