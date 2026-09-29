@@ -45,6 +45,7 @@ function Footer() {
     <div><Logo /><p className="footer-copy">Art • Workshops • Community<br /><span>Made with creativity & a little chaos. 💙</span></p></div>
     <div><p className="eyebrow">Find your way</p><div className="footer-links"><Link to="/workshops">Workshops</Link><Link to="/about">Who are we?</Link><Link to="/gallery">Gallery</Link><Link to="/contact">Contact</Link></div></div>
     <div><p className="eyebrow">Come say hi</p><p className="footer-copy">Jaipur, Rajasthan<br /><a href="https://instagram.com/makeitsociall">@makeitsociall ↗</a><br /><a href="mailto:hello@makeitsociall.com">hello@makeitsociall.com</a></p></div>
+    <p className="footer-credit">Powered by Ventacraft</p>
   </div></footer>
 }
 
