@@ -64,6 +64,29 @@ export async function getWorkshops() {
 
 type GalleryRow = { id: string; image_url: string; caption: string | null; sort_order: number }
 
+export type AdminWorkshop = WorkshopRow & { created_at: string }
+export type AdminRegistration = {
+  id: string
+  registration_id: string
+  workshop_id: string
+  full_name: string
+  phone: string
+  email: string
+  number_of_seats: number
+  status: string
+  payment_status: string
+  created_at: string
+}
+export type AdminGalleryItem = GalleryRow & { created_at: string }
+export type AdminMessage = {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  message: string
+  created_at: string
+}
+
 export async function getGallery() {
   if (!supabase) return fallbackGallery
   const { data, error } = await supabase
@@ -72,6 +95,27 @@ export async function getGallery() {
     .order('sort_order', { ascending: true })
   if (error) throw error
   return (data as GalleryRow[]).map((row) => ({ image: row.image_url, caption: row.caption ?? 'Made together.' }))
+}
+
+export async function getAdminData() {
+  if (!supabase) throw new Error('Supabase is not configured.')
+
+  const [workshopsResult, registrationsResult, galleryResult, messagesResult] = await Promise.all([
+    supabase.from('workshops').select('*').order('date', { ascending: true }),
+    supabase.from('registrations').select('id,registration_id,workshop_id,full_name,phone,email,number_of_seats,status,payment_status,created_at').order('created_at', { ascending: false }),
+    supabase.from('gallery').select('id,image_url,caption,sort_order,created_at').order('sort_order', { ascending: true }),
+    supabase.from('contacts').select('id,name,email,phone,message,created_at').order('created_at', { ascending: false }),
+  ])
+
+  const failed = [workshopsResult, registrationsResult, galleryResult, messagesResult].find((result) => result.error)
+  if (failed?.error) throw failed.error
+
+  return {
+    workshops: workshopsResult.data as AdminWorkshop[],
+    registrations: registrationsResult.data as AdminRegistration[],
+    gallery: galleryResult.data as AdminGalleryItem[],
+    messages: messagesResult.data as AdminMessage[],
+  }
 }
 
 export type RegistrationInput = {

@@ -5,7 +5,7 @@ import {
   Heart, Mail, MapPin, Menu, Palette, Pencil, Send, Scissors, Sparkles, Users, X,
 } from 'lucide-react'
 import { gallery, workshops, type Workshop } from './data'
-import { createRegistration, getGallery, getWorkshops, submitContact, supabase } from './supabase'
+import { createRegistration, getAdminData, getGallery, getWorkshops, submitContact, supabase, type AdminGalleryItem, type AdminMessage, type AdminRegistration, type AdminWorkshop } from './supabase'
 
 const money = (value: number) => `₹${value.toLocaleString('en-IN')}`
 
@@ -150,8 +150,27 @@ function TeamAccess() {
 }
 
 function AdminDashboard() {
-  const [tab, setTab] = useState('Overview'); const nav = ['Overview', 'Workshops', 'Registrations', 'Gallery', 'Messages', 'Settings']
-  return <main className="dashboard"><aside className="dash-sidebar"><Logo /><p className="eyebrow">Team studio</p><nav>{nav.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</nav><Link to="/" className="back-link">← View public site</Link></aside><section className="dash-main"><div className="dash-top"><div><p className="eyebrow">Good morning, team ✦</p><h1>{tab}</h1></div><div className="team-avatar">MS</div></div>{tab === 'Overview' ? <><div className="stats-grid"><div><span>Upcoming workshop</span><strong>Clay & Coffee</strong><small>This Sunday · 18/25 registered</small></div><div><span>Confirmed registrations</span><strong>18</strong><small>+5 this week</small></div><div><span>Seats remaining</span><strong>7</strong><small>Across upcoming workshops</small></div><div><span>New messages</span><strong>06</strong><small>Needs a little love</small></div></div><div className="dash-panel"><div className="panel-head"><h2>Upcoming workshops</h2><button onClick={() => setTab('Workshops')}>Manage all <ArrowRight size={14} /></button></div>{workshops.map((w) => <div className="dash-workshop" key={w.id}><img src={w.image} alt="" /><div><strong>{w.title}</strong><small>{w.date} · {w.time}</small></div><span>{w.availableSeats}/{w.totalSeats} seats left</span><button>View <ArrowRight size={14} /></button></div>)}</div></> : <div className="dash-panel empty-dash"><Sparkles /><h2>{tab} is ready for your magic.</h2><p>Connect Supabase to manage live content here. Your dashboard structure is in place.</p><Button variant="outline">Add something <ArrowRight size={15} /></Button></div>}</section></main>
+  const [tab, setTab] = useState('Overview')
+  const [data, setData] = useState<{ workshops: AdminWorkshop[]; registrations: AdminRegistration[]; gallery: AdminGalleryItem[]; messages: AdminMessage[] } | null>(null)
+  const [error, setError] = useState('')
+  const nav = ['Overview', 'Workshops', 'Registrations', 'Gallery', 'Messages', 'Settings']
+
+  useEffect(() => {
+    getAdminData().then(setData).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Could not load studio data.'))
+  }, [])
+
+  const registrations = data?.registrations ?? []
+  const confirmedSeats = registrations.filter((item) => item.status === 'confirmed').reduce((total, item) => total + item.number_of_seats, 0)
+  const seatsRemaining = (data?.workshops ?? []).reduce((total, item) => total + item.available_seats, 0)
+  const renderTable = () => {
+    if (tab === 'Workshops') return <div className="admin-list">{(data?.workshops ?? []).map((item) => <div className="admin-row" key={item.id}><strong>{item.title}</strong><span>{item.date} · {item.available_seats}/{item.total_seats} seats</span><small>{item.status}</small></div>)}</div>
+    if (tab === 'Registrations') return <div className="admin-list">{registrations.map((item) => <div className="admin-row" key={item.id}><strong>{item.full_name}</strong><span>{item.email} · {item.number_of_seats} seat(s)</span><small>{item.status}</small></div>)}</div>
+    if (tab === 'Gallery') return <div className="admin-list">{(data?.gallery ?? []).map((item) => <div className="admin-row" key={item.id}><strong>{item.caption || 'Untitled image'}</strong><span>{item.image_url}</span><small>Order {item.sort_order}</small></div>)}</div>
+    if (tab === 'Messages') return <div className="admin-list">{(data?.messages ?? []).map((item) => <div className="admin-row" key={item.id}><strong>{item.name}</strong><span>{item.email} · {item.message}</span><small>{new Date(item.created_at).toLocaleDateString('en-IN')}</small></div>)}</div>
+    return <p className="muted">Use Supabase Dashboard to manage team accounts and permissions.</p>
+  }
+
+  return <main className="dashboard"><aside className="dash-sidebar"><Logo /><p className="eyebrow">Team studio</p><nav>{nav.map((item) => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</nav><Link to="/" className="back-link">← View public site</Link></aside><section className="dash-main"><div className="dash-top"><div><p className="eyebrow">Good morning, team ✦</p><h1>{tab}</h1></div><div className="team-avatar">MS</div></div>{error && <div className="form-error dashboard-error">Could not load Supabase data: {error}</div>}{!data && !error && <div className="dash-panel"><p>Loading your studio data...</p></div>}{data && tab === 'Overview' && <><div className="stats-grid"><div><span>Upcoming workshops</span><strong>{data.workshops.length}</strong><small>Live records in Supabase</small></div><div><span>Confirmed seats</span><strong>{confirmedSeats}</strong><small>Across all registrations</small></div><div><span>Seats remaining</span><strong>{seatsRemaining}</strong><small>Across upcoming workshops</small></div><div><span>New messages</span><strong>{data.messages.length}</strong><small>Messages received</small></div></div><div className="dash-panel"><div className="panel-head"><h2>Upcoming workshops</h2><button onClick={() => setTab('Workshops')}>Manage all <ArrowRight size={14} /></button></div>{data.workshops.map((item) => <div className="dash-workshop" key={item.id}><img src={item.image_url || '/brand/not-just-art-poster.png'} alt="" /><div><strong>{item.title}</strong><small>{item.date} · {item.start_time}</small></div><span>{item.available_seats}/{item.total_seats} seats left</span><button onClick={() => setTab('Workshops')}>View <ArrowRight size={14} /></button></div>)}</div></>}{data && tab !== 'Overview' && <div className="dash-panel admin-data-panel">{renderTable()}</div>}</section></main>
 }
 
 function App() {
